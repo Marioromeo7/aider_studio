@@ -729,8 +729,11 @@ cpSave.addEventListener('click', () => {
   const model = cpModel.value.trim();
   const apiKeyEnv = cpEnv.value.trim();
   const key = cpKey.value.trim();
-  if (!label || !model || !key) {
-    cpError.textContent = 'Name, model id, and API key are all required.';
+  const isLocal = /^ollama(_chat)?\//.test(model);
+  if (!label || !model || (!key && !isLocal)) {
+    cpError.textContent = isLocal
+      ? 'Name and model id are required.'
+      : 'Name, model id, and API key are all required.';
     return;
   }
   cpSave.disabled = true; cpSave.textContent = 'Resolving…';

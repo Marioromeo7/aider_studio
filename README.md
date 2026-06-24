@@ -17,7 +17,7 @@ And an **API key** for at least one provider (see below).
 
 Aider Studio works with any Aider/LiteLLM model. The quality of answers is the **model's** job — pick a capable one. Good free, globally-available options:
 
-- **OpenRouter** — [openrouter.ai/keys](https://openrouter.ai/keys). Works everywhere; strong free models (e.g. DeepSeek V3). Preconfigured as a provider.
+- **OpenRouter** — [openrouter.ai/keys](https://openrouter.ai/keys). Works everywhere; strong free models (e.g. Qwen3 Coder). Preconfigured as a provider. Free models come and go — see the current list at [openrouter.ai/models?max_price=0](https://openrouter.ai/models?max_price=0).
 - **Gemini** — [aistudio.google.com](https://aistudio.google.com). Generous token limits **where the free tier is available** (regional restrictions apply).
 - **Groq** — [console.groq.com](https://console.groq.com). Very fast, but small daily/per-minute limits and weaker models.
 

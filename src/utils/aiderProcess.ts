@@ -48,8 +48,11 @@ export class AiderProcess extends EventEmitter {
       this.stop();
     }
 
+    // Local models (Ollama) need no API key — they run on your machine.
+    const isLocal = /^ollama(_chat)?\//.test(provider.aiderModel);
+
     let resolvedKey = await resolveApiKey(this.context, provider);
-    if (!resolvedKey || forcePrompt) {
+    if (!isLocal && (!resolvedKey || forcePrompt)) {
       const entered = await vscode.window.showInputBox({
         prompt: `Enter API key for ${provider.label}`,
         password: true,
@@ -61,7 +64,7 @@ export class AiderProcess extends EventEmitter {
       await storeApiKey(this.context, provider, entered);
       resolvedKey = entered;
     }
-    if (!resolvedKey) return false;
+    if (!isLocal && !resolvedKey) return false;
 
     const config = vscode.workspace.getConfiguration('aiderStudio');
     const aiderPath = config.get<string>('aiderPath') ?? 'aider';
@@ -93,13 +96,18 @@ export class AiderProcess extends EventEmitter {
 
     // FIX: Only set the provider-specific env var, never leak keys to unrelated env vars
     const env: NodeJS.ProcessEnv = { ...process.env };
-    env[provider.apiKeyEnv] = resolvedKey;
-    if (provider.aiderModel.startsWith('gemini/')) {
+    if (resolvedKey) env[provider.apiKeyEnv] = resolvedKey;
+    if (resolvedKey && provider.aiderModel.startsWith('gemini/')) {
       env['GEMINI_API_KEY'] = resolvedKey;
       env['GOOGLE_API_KEY'] = resolvedKey;
     }
-    if (provider.aiderModel.startsWith('groq/')) {
+    if (resolvedKey && provider.aiderModel.startsWith('groq/')) {
       env['GROQ_API_KEY'] = resolvedKey;
+    }
+    // Local models via Ollama — point aider at the Ollama server. From inside the
+    // container the host is reachable as host.docker.internal; natively it's localhost.
+    if (isLocal) {
+      env['OLLAMA_API_BASE'] = useDocker ? 'http://host.docker.internal:11434' : 'http://localhost:11434';
     }
 
     // Build the list of env vars to pass to the aider process (or Docker container)
@@ -108,11 +116,15 @@ export class AiderProcess extends EventEmitter {
       // Only pass API keys and essential vars — skip bloated host env
       if (v === undefined || v === '') continue;
       const lk = k.toUpperCase();
-      if (lk.includes('API_KEY') || lk.includes('TOKEN') || lk === 'HOME' || lk === 'PATH' ||
-          lk === 'LANG' || lk === 'TERM' || lk === 'http_proxy' || lk === 'https_proxy') {
+      if (lk.includes('API_KEY') || lk.includes('TOKEN') || lk === 'OLLAMA_API_BASE' ||
+          lk === 'HOME' || lk === 'PATH' || lk === 'LANG' || lk === 'TERM' ||
+          lk === 'http_proxy' || lk === 'https_proxy') {
         aiderEnvVars.push('-e', k + '=' + v);
       }
     }
+
+    // In Docker, give the container a route back to the host's Ollama server.
+    const dockerExtraArgs = isLocal ? ['--add-host', 'host.docker.internal:host-gateway'] : [];
 
     // Ensure a git repo exists before starting aider (aider requires git)
     await this.ensureGitRepo();
@@ -122,7 +134,7 @@ export class AiderProcess extends EventEmitter {
     // back to Docker on ENOENT instead of alarming the user.
     let result = await this.launchAider({
       mode: useDocker ? 'docker' : 'native',
-      args, env, aiderEnvVars, aiderPath, dockerImage,
+      args, env, aiderEnvVars, aiderPath, dockerImage, dockerExtraArgs,
       suppressStartupError: !useDocker,
     });
 
@@ -137,7 +149,7 @@ export class AiderProcess extends EventEmitter {
         } as AiderOutputEvent);
         result = await this.launchAider({
           mode: 'docker',
-          args, env, aiderEnvVars, aiderPath, dockerImage,
+          args, env, aiderEnvVars, aiderPath, dockerImage, dockerExtraArgs,
           suppressStartupError: false,
         });
       } else if (result.failureMessage) {
@@ -168,9 +180,11 @@ export class AiderProcess extends EventEmitter {
     aiderEnvVars: string[];
     aiderPath: string;
     dockerImage: string;
+    dockerExtraArgs?: string[];
     suppressStartupError: boolean;
   }): Promise<{ ok: boolean; enoent: boolean; failureMessage?: string }> {
     const { mode, args, env, aiderEnvVars, aiderPath, dockerImage, suppressStartupError } = opts;
+    const dockerExtraArgs = opts.dockerExtraArgs ?? [];
     const useDocker = mode === 'docker';
 
     this.setStatus('starting');
@@ -188,6 +202,7 @@ export class AiderProcess extends EventEmitter {
 
         const dockerArgs = [
           'run', '-i', '--rm',
+          ...dockerExtraArgs,
           '-v', workspaceVolume + ':/workspace',
           '-w', '/workspace',
           ...aiderEnvVars,

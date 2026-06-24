@@ -143,11 +143,18 @@
               "apiKeySettingKey": "aiderStudio.groqApiKey",
               "freetier": true
             },
-            "openrouter-deepseek": {
-              "label": "OpenRouter \u2014 DeepSeek V3 (free)",
-              "aiderModel": "openrouter/deepseek/deepseek-chat-v3-0324:free",
+            "openrouter-qwen": {
+              "label": "OpenRouter \u2014 Qwen3 Coder (free)",
+              "aiderModel": "openrouter/qwen/qwen3-coder:free",
               "apiKeyEnv": "OPENROUTER_API_KEY",
               "apiKeySettingKey": "aiderStudio.openrouterApiKey",
+              "freetier": true
+            },
+            "ollama-qwen-coder": {
+              "label": "Local \u2014 Qwen2.5 Coder 3B (Ollama, no key, no limits)",
+              "aiderModel": "ollama_chat/qwen2.5-coder:3b",
+              "apiKeyEnv": "OLLAMA_API_KEY",
+              "apiKeySettingKey": "aiderStudio.ollamaKey",
               "freetier": true
             }
           }
