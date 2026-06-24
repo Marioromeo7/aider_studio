@@ -406,7 +406,9 @@ export class ChatPanel implements vscode.WebviewViewProvider {
         break;
       }
       case 'stderr':
-        if (!event.data.includes('HF Hub') && !event.data.includes('symlinks') && !event.data.includes('prompt toolkit')) {
+        if (!event.data.includes('HF Hub') && !event.data.includes('symlinks') &&
+            !event.data.includes('prompt toolkit') &&
+            !/Input is not a terminal/i.test(event.data)) {
           this.postMessage({ type: 'error', text: event.data });
         }
         break;

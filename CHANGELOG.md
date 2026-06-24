@@ -2,6 +2,17 @@
 
 All notable changes to Aider Studio are documented here.
 
+## [0.1.2]
+
+### Fixed
+- **Collapsed spacing in streamed replies** (e.g. `You'veprovidedtherules…`).
+  Aider is now launched with `--no-stream`, so each response prints as one clean
+  block instead of its live markdown renderer mangling inter-word spaces when
+  piped into a non-TTY. Output is already buffered before display, so nothing is
+  lost.
+- **`Warning: Input is not a terminal` no longer leaks** into the transcript as
+  an error line — the stderr filter now drops it.
+
 ## [0.1.1]
 
 ### Added

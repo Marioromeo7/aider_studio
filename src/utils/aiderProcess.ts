@@ -78,6 +78,10 @@ export class AiderProcess extends EventEmitter {
     const args = [
       '--model', provider.aiderModel,
       '--no-pretty',
+      // Disable token streaming: piped into a non-TTY, aider's live markdown
+      // renderer mangles inter-word spacing (e.g. "You'veprovidedtherules").
+      // We buffer output for 300ms before display anyway, so nothing is lost.
+      '--no-stream',
       '--yes',
       '--no-suggest-shell-commands',
       '--map-tokens', '1024',
