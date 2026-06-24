@@ -1,0 +1,20 @@
+# Aider Studio — Docker Compose setup
+#
+# Quick start (run once):
+#   docker compose build        ← builds the aider image locally
+#   docker compose pull         ← or pull the official image (faster)
+#
+# After that, just enable "aiderStudio.useDocker" in VS Code settings.
+# The extension spawns containers from this image automatically.
+
+services:
+  aider:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: aider-studio-aider
+    stdin_open: true        # keeps stdin open for interactive mode
+    tty: false              # no pseudo-TTY — the extension pipes stdin/stdout
+    working_dir: /workspace
+    # Volumes are injected at runtime by the extension, not here,
+    # because each workspace has a different path.

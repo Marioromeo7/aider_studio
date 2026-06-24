@@ -1,0 +1,23 @@
+# Source & build config (the compiled output in out/ is what ships)
+src/**
+tsconfig.json
+**/*.ts
+**/*.map
+
+# Dev tooling & VCS
+.vscode/**
+.github/**
+.git/**
+.gitignore
+test/**
+*.vsix
+node_modules/**
+package-lock.json
+
+# Repo cruft not needed at runtime
+**/.DS_Store
+**/Thumbs.db
+scratchpad/**
+
+# Keep at runtime: out/, media/, resources/, docker-compose.yml, Dockerfile,
+# README.md, CHANGELOG.md, LICENSE, package.json

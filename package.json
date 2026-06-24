@@ -1,0 +1,229 @@
+{
+  "name": "aider-studio",
+  "displayName": "Aider Studio",
+  "description": "A Claude Code-style chat sidebar for VS Code, powered by Aider and your own LLM provider (bring your own key).",
+  "version": "0.1.0",
+  "publisher": "your-publisher-id",
+  "license": "MIT",
+  "icon": "resources/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Marioromeo7/aider_studio.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Marioromeo7/aider_studio/issues"
+  },
+  "homepage": "https://github.com/Marioromeo7/aider_studio#readme",
+  "keywords": [
+    "aider",
+    "ai",
+    "chat",
+    "copilot",
+    "coding-assistant",
+    "llm",
+    "gemini",
+    "openrouter"
+  ],
+  "galleryBanner": {
+    "color": "#5865F2",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "AI",
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "aider-studio.openChat",
+        "title": "Aider Studio: Open Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "aider-studio.sendCurrentFile",
+        "title": "Aider Studio: Add Current File to Context"
+      },
+      {
+        "command": "aider-studio.newSession",
+        "title": "Aider Studio: New Session"
+      },
+      {
+        "command": "aider-studio.switchProvider",
+        "title": "Aider Studio: Switch Provider / Model"
+      },
+      {
+        "command": "aider-studio.stopAider",
+        "title": "Aider Studio: Stop Aider Process"
+      },
+      {
+        "command": "aider-studio.resetApiKey",
+        "title": "Aider Studio: Reset / Update API Key"
+      },
+      {
+        "command": "aider-studio.buildDockerImage",
+        "title": "Aider Studio: Build Docker Image",
+        "icon": "$(package)"
+      },
+      {
+        "command": "aider-studio.saveMemory",
+        "title": "Aider Studio: Save Memory to MEMORY.md"
+      },
+      {
+        "command": "aider-studio.rebuildRepoMap",
+        "title": "Aider Studio: Rebuild Repo Map",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "aider-studio.unloadContext",
+        "title": "Aider Studio: Unload Context (free the window)",
+        "icon": "$(clear-all)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "aider-studio.openChat",
+        "key": "ctrl+shift+a",
+        "mac": "cmd+shift+a"
+      },
+      {
+        "command": "aider-studio.sendCurrentFile",
+        "key": "ctrl+shift+f",
+        "mac": "cmd+shift+f"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "aider-studio",
+          "title": "Aider Studio",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "aider-studio": [
+        {
+          "type": "webview",
+          "id": "aider-studio.chatView",
+          "name": "Chat"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Aider Studio",
+      "properties": {
+        "aiderStudio.activeProvider": {
+          "type": "string",
+          "default": "gemini",
+          "description": "Active LLM provider ID"
+        },
+        "aiderStudio.providers": {
+          "type": "object",
+          "description": "Provider configurations. Add new providers here without code changes.",
+          "default": {
+            "gemini": {
+              "label": "Gemini Flash 2.0",
+              "aiderModel": "gemini/gemini-2.0-flash",
+              "apiKeyEnv": "GEMINI_API_KEY",
+              "apiKeySettingKey": "aiderStudio.geminiApiKey",
+              "freetier": true
+            },
+            "groq-llama": {
+              "label": "Groq \u2014 Llama 3.3 70B",
+              "aiderModel": "groq/llama-3.3-70b-versatile",
+              "apiKeyEnv": "GROQ_API_KEY",
+              "apiKeySettingKey": "aiderStudio.groqApiKey",
+              "freetier": true
+            },
+            "openrouter-deepseek": {
+              "label": "OpenRouter \u2014 DeepSeek V3 (free)",
+              "aiderModel": "openrouter/deepseek/deepseek-chat-v3-0324:free",
+              "apiKeyEnv": "OPENROUTER_API_KEY",
+              "apiKeySettingKey": "aiderStudio.openrouterApiKey",
+              "freetier": true
+            }
+          }
+        },
+        "aiderStudio.geminiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Google AI Studio API key (free at aistudio.google.com)",
+          "secret": true
+        },
+        "aiderStudio.groqApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Groq API key (free at console.groq.com)",
+          "secret": true
+        },
+        "aiderStudio.openrouterApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenRouter API key (free at openrouter.ai/keys) — works globally, good free models.",
+          "secret": true
+        },
+        "aiderStudio.useDocker": {
+          "type": "boolean",
+          "default": true,
+          "description": "Run Aider inside a Docker container instead of locally. Requires Docker Desktop installed. Default true so Aider works without a local pip install."
+        },
+        "aiderStudio.dockerImage": {
+          "type": "string",
+          "default": "aider-studio-aider",
+          "description": "Docker image to use when useDocker is true. Defaults to the image built by 'docker compose build'."
+        },
+        "aiderStudio.aiderPath": {
+          "type": "string",
+          "default": "aider",
+          "description": "Path to aider executable (ignored when useDocker is true). Default assumes it's on PATH."
+        },
+        "aiderStudio.autoCommit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Let Aider auto-commit changes with descriptive messages"
+        },
+        "aiderStudio.showDiffOnChange": {
+          "type": "boolean",
+          "default": true,
+          "description": "Open diff view when Aider modifies a file"
+        },
+        "aiderStudio.repoMap.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "Build REPO_MAP.md (a tree + per-file outline of the whole workspace) and keep it loaded in Aider's context so it can see every file."
+        },
+        "aiderStudio.repoMap.summaries": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enrich the repo map with a short AI summary per file, generated by the currently active provider. Cached so each file is summarized only once until it changes."
+        },
+        "aiderStudio.repoMap.summaryBudget": {
+          "type": "number",
+          "default": 150,
+          "description": "Maximum number of file summaries to generate per map build, to protect free-tier rate limits. Remaining files fill in on subsequent builds."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "npm run compile && node --test",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0"
+  }
+}

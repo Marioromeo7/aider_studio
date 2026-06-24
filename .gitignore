@@ -1,0 +1,17 @@
+# Dependencies & build output
+node_modules/
+out/
+
+# Packaged extension
+*.vsix
+
+# VS Code extension test runner
+.vscode-test/
+
+# Aider Studio runtime artifacts (created when dogfooding on this repo)
+REPO_MAP.md
+.aider/
+
+# OS cruft
+.DS_Store
+Thumbs.db
