@@ -4,6 +4,22 @@ A **Claude Code-style chat sidebar for VS Code**, powered by [Aider](https://aid
 
 > **Heads-up:** This extension orchestrates Aider, which runs either in **Docker** (default, recommended) or natively. You need **one** of those installed — see Requirements. It also sends file summaries to whichever LLM provider you configure.
 
+## Screenshots
+
+<!--
+  Marketplace note: README images MUST be absolute HTTPS URLs to render on the
+  Marketplace listing (relative paths do not work there). Drop your PNGs/GIFs
+  into media/screenshots/ with these names and the links below will work.
+-->
+
+| Chat & streamed answers | Inline diff (accept / undo) |
+|---|---|
+| ![Chat](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/chat.png) | ![Inline diff](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/diff.png) |
+
+![Add a provider](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/provider.png)
+
+> _Replace the placeholders above by adding `chat.png`, `diff.png`, and `provider.png` (a short `.gif` works too) to `media/screenshots/`. A 10–15s demo GIF at the top dramatically improves the listing._
+
 ## Requirements
 
 You need **either**:
