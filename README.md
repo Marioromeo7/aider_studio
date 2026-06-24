@@ -8,17 +8,13 @@ A **Claude Code-style chat sidebar for VS Code**, powered by [Aider](https://aid
 
 <!--
   Marketplace note: README images MUST be absolute HTTPS URLs to render on the
-  Marketplace listing (relative paths do not work there). Drop your PNGs/GIFs
-  into media/screenshots/ with these names and the links below will work.
+  Marketplace listing (relative paths do not work there). The files below live
+  in media/screenshots/ and are committed to the repo.
 -->
 
-| Chat & streamed answers | Inline diff (accept / undo) |
+| Pick a provider, bring your own key | Chat & streamed answers |
 |---|---|
-| ![Chat](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/chat.png) | ![Inline diff](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/diff.png) |
-
-![Add a provider](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/provider.png)
-
-> _Replace the placeholders above by adding `chat.png`, `diff.png`, and `provider.png` (a short `.gif` works too) to `media/screenshots/`. A 10–15s demo GIF at the top dramatically improves the listing._
+| ![Provider setup](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/model_selection.png) | ![Chat](https://raw.githubusercontent.com/Marioromeo7/aider_studio/main/media/screenshots/chat.png) |
 
 ## Requirements
 
