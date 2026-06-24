@@ -177,6 +177,12 @@
           "description": "OpenRouter API key (free at openrouter.ai/keys) — works globally, good free models.",
           "secret": true
         },
+        "aiderStudio.hiddenProviders": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Provider IDs hidden from the list (removed via the UI). Clear this array to restore removed built-in providers."
+        },
         "aiderStudio.useDocker": {
           "type": "boolean",
           "default": true,

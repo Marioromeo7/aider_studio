@@ -55,6 +55,14 @@ window.addEventListener('message', ({ data: msg }) => {
     case 'customProviderResult':
       handleCustomProviderResult(msg);
       break;
+    case 'providersUpdated':
+      if (msg.providers) {
+        Object.keys(providers).forEach(k => delete providers[k]);
+        Object.assign(providers, msg.providers);
+      }
+      refreshProviderOptions(msg.activeProviderId);
+      if (customModal.style.display !== 'none') renderProviderManageList();
+      break;
     case 'user': appendMessage('user', msg.text); break;
     case 'assistant': appendMessage('assistant', msg.text); break;
     case 'system': appendMessage('system', msg.text); break;
@@ -706,11 +714,57 @@ function inferEnv(model) {
   return prefix ? prefix.toUpperCase().replace(/[^A-Z0-9]/g, '_') + '_API_KEY' : '';
 }
 
+let cpMode = 'cloud';
+function setCpMode(mode) {
+  cpMode = mode;
+  document.getElementById('cp-mode-cloud').classList.toggle('active', mode === 'cloud');
+  document.getElementById('cp-mode-local').classList.toggle('active', mode === 'local');
+  document.getElementById('cp-cloud-fields').style.display = mode === 'cloud' ? '' : 'none';
+  document.getElementById('cp-local-note').style.display = mode === 'local' ? 'block' : 'none';
+  document.getElementById('cp-examples-cloud').style.display = mode === 'cloud' ? 'block' : 'none';
+  document.getElementById('cp-examples-local').style.display = mode === 'local' ? 'block' : 'none';
+  cpModel.placeholder = mode === 'local'
+    ? 'e.g. qwen2.5-coder:3b  (ollama_chat/ added automatically)'
+    : 'e.g. openrouter/anthropic/claude-3.5-haiku';
+}
+document.getElementById('cp-mode-cloud').addEventListener('click', () => setCpMode('cloud'));
+document.getElementById('cp-mode-local').addEventListener('click', () => setCpMode('local'));
+
+// "Your providers" list with remove buttons.
+function renderProviderManageList() {
+  const list = document.getElementById('cp-list');
+  list.innerHTML = '';
+  const ids = Object.keys(providers);
+  const active = providerSelect.value || activeId;
+  ids.forEach(id => {
+    const item = document.createElement('div');
+    item.className = 'cp-list-item';
+    const name = document.createElement('span');
+    name.textContent = providers[id].label;
+    if (id === active) {
+      const dot = document.createElement('span');
+      dot.className = 'cp-active-dot'; dot.textContent = '●';
+      name.appendChild(dot);
+    }
+    const del = document.createElement('button');
+    del.textContent = '🗑'; del.title = ids.length <= 1 ? 'Keep at least one provider' : 'Remove';
+    del.disabled = ids.length <= 1;
+    del.addEventListener('click', () => {
+      if (ids.length <= 1) return;
+      vscode.postMessage({ type: 'removeProvider', id });
+    });
+    item.appendChild(name); item.appendChild(del);
+    list.appendChild(item);
+  });
+}
+
 function openCustomModal() {
   cpLabel.value = ''; cpModel.value = ''; cpEnv.value = ''; cpKey.value = '';
   cpFree.checked = false; cpError.textContent = '';
   cpEnv.dataset.touched = '';
   cpSave.disabled = false; cpSave.textContent = 'Add & Connect';
+  setCpMode('cloud');
+  renderProviderManageList();
   customModal.style.display = 'flex';
   cpLabel.focus();
 }
@@ -726,19 +780,23 @@ document.getElementById('cp-cancel').addEventListener('click', () => {
 
 cpSave.addEventListener('click', () => {
   const label = cpLabel.value.trim();
-  const model = cpModel.value.trim();
-  const apiKeyEnv = cpEnv.value.trim();
-  const key = cpKey.value.trim();
-  const isLocal = /^ollama(_chat)?\//.test(model);
-  if (!label || !model || (!key && !isLocal)) {
-    cpError.textContent = isLocal
-      ? 'Name and model id are required.'
+  let model = cpModel.value.trim();
+  const local = cpMode === 'local' || /^ollama(_chat)?\//.test(model);
+  // In Local mode, accept a bare model name and add the ollama_chat/ prefix.
+  if (cpMode === 'local' && model && !/^ollama(_chat)?\//.test(model)) {
+    model = 'ollama_chat/' + model;
+  }
+  const apiKeyEnv = local ? 'OLLAMA_API_KEY' : cpEnv.value.trim();
+  const key = local ? '' : cpKey.value.trim();
+  if (!label || !model || (!key && !local)) {
+    cpError.textContent = local
+      ? 'Name and model are required.'
       : 'Name, model id, and API key are all required.';
     return;
   }
   cpSave.disabled = true; cpSave.textContent = 'Resolving…';
   cpError.textContent = '';
-  vscode.postMessage({ type: 'addCustomProvider', label, model, apiKeyEnv, key, freetier: cpFree.checked });
+  vscode.postMessage({ type: 'addCustomProvider', label, model, apiKeyEnv, key, freetier: local || cpFree.checked });
 });
 
 function handleCustomProviderResult(msg) {
@@ -752,10 +810,11 @@ function handleCustomProviderResult(msg) {
     refreshProviderOptions(selected);
   } else {
     // Couldn't resolve — keep the modal open and print the error, but also reflect
-    // the (now-saved) provider in the dropdown so it's selectable to retry/fix.
+    // the (now-saved) provider in the dropdown + manage list so it's selectable/removable.
     cpError.textContent = msg.error || 'Could not resolve this provider.';
     cpSave.disabled = false; cpSave.textContent = 'Add & Connect';
     if (selected) refreshProviderOptions(selected);
+    renderProviderManageList();
   }
 }
 

@@ -19,7 +19,16 @@ export interface ProviderRegistry {
  */
 export function getProviders(): ProviderRegistry {
   const config = vscode.workspace.getConfiguration('aiderStudio');
-  return config.get<ProviderRegistry>('providers') ?? {};
+  const all = config.get<ProviderRegistry>('providers') ?? {};
+  // VS Code re-merges built-in defaults from package.json, so deletes don't stick.
+  // A separate "hidden" list lets us remove defaults too.
+  const hidden = config.get<string[]>('hiddenProviders') ?? [];
+  if (!hidden.length) return all;
+  const out: ProviderRegistry = {};
+  for (const [id, p] of Object.entries(all)) {
+    if (!hidden.includes(id)) out[id] = p;
+  }
+  return out;
 }
 
 export function getActiveProviderId(): string {
@@ -133,5 +142,36 @@ export async function addCustomProvider(
   providers[id] = provider;
   await config.update('providers', providers, vscode.ConfigurationTarget.Global);
   await storeApiKey(context, provider, input.apiKey.trim());
+  // If this id was previously hidden, un-hide it.
+  const hidden = config.get<string[]>('hiddenProviders') ?? [];
+  if (hidden.includes(id)) {
+    await config.update('hiddenProviders', hidden.filter((h) => h !== id), vscode.ConfigurationTarget.Global);
+  }
   return { id, provider };
+}
+
+/**
+ * Remove a provider. Marks it hidden (so built-in defaults stay gone despite
+ * VS Code re-merging them), and for custom providers also deletes the entry and
+ * its stored key.
+ */
+export async function removeProvider(
+  context: vscode.ExtensionContext,
+  id: string
+): Promise<void> {
+  const config = vscode.workspace.getConfiguration('aiderStudio');
+
+  const hidden = new Set(config.get<string[]>('hiddenProviders') ?? []);
+  hidden.add(id);
+  await config.update('hiddenProviders', [...hidden], vscode.ConfigurationTarget.Global);
+
+  const providers: ProviderRegistry = { ...(config.get<ProviderRegistry>('providers') ?? {}) };
+  const removed = providers[id];
+  if (removed) {
+    delete providers[id];
+    await config.update('providers', providers, vscode.ConfigurationTarget.Global);
+    if (removed.apiKeySettingKey) {
+      try { await context.secrets.delete(removed.apiKeySettingKey); } catch { /* ignore */ }
+    }
+  }
 }

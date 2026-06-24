@@ -3,7 +3,7 @@ import * as path from 'path';
 import { AiderProcess, AiderOutputEvent, AiderStatus } from '../utils/aiderProcess';
 import { SessionManager } from '../utils/sessionManager';
 import { RepoMapManager } from '../utils/repoMap';
-import { getProviders, getActiveProviderId, getActiveProvider, setActiveProvider, storeApiKey, resolveApiKey, addCustomProvider } from '../providers/registry';
+import { getProviders, getActiveProviderId, getActiveProvider, setActiveProvider, storeApiKey, resolveApiKey, addCustomProvider, removeProvider } from '../providers/registry';
 
 export class ChatPanel implements vscode.WebviewViewProvider {
   public static readonly viewType = 'aider-studio.chatView';
@@ -224,6 +224,28 @@ export class ChatPanel implements vscode.WebviewViewProvider {
               error: 'Failed to add provider: ' + (e?.message ?? String(e)),
             });
           }
+          break;
+        }
+
+        // Remove a provider from the list (from the modal's manage section).
+        case 'removeProvider': {
+          const ids = Object.keys(getProviders());
+          if (ids.length <= 1) {
+            this.postMessage({ type: 'system', text: "Can't remove the last provider." });
+            break;
+          }
+          const wasActive = getActiveProviderId() === msg.id;
+          await removeProvider(this.context, msg.id);
+          if (wasActive) {
+            const remaining = Object.keys(getProviders());
+            if (remaining[0]) await setActiveProvider(remaining[0]);
+          }
+          this.postMessage({
+            type: 'providersUpdated',
+            providers: getProviders(),
+            activeProviderId: getActiveProviderId(),
+          });
+          this.postMessage({ type: 'system', text: 'Provider removed.' });
           break;
         }
 
@@ -634,6 +656,18 @@ body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);col
 .cp-btn-primary:hover{background:var(--vscode-button-hoverBackground)}
 .cp-btn-primary:disabled{opacity:.5;cursor:not-allowed}
 .cp-btn-secondary{background:none;border:1px solid var(--vscode-input-border);color:var(--vscode-foreground);border-radius:4px;padding:7px 16px;cursor:pointer;font-size:12px}
+.cp-tabs{display:flex;gap:0;margin:4px 0 2px;border:1px solid var(--vscode-input-border);border-radius:6px;overflow:hidden}
+.cp-tab{flex:1;background:none;border:none;color:var(--vscode-foreground);padding:7px 10px;font-size:12px;cursor:pointer;opacity:.7}
+.cp-tab.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);opacity:1}
+#cp-local-note{font-size:11px;line-height:1.5;background:var(--vscode-textBlockQuote-background,var(--vscode-editor-background));border-left:2px solid var(--vscode-focusBorder);padding:8px 10px;border-radius:4px;opacity:.9}
+#cp-manage{margin-top:18px;border-top:1px solid var(--vscode-input-border);padding-top:12px}
+.cp-manage-title{font-size:11px;font-weight:600;opacity:.7;margin-bottom:6px}
+.cp-list-item{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border:1px solid var(--vscode-input-border);border-radius:5px;margin-bottom:5px;font-size:11px}
+.cp-list-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cp-list-item .cp-active-dot{color:var(--vscode-testing-iconPassed);font-weight:700;margin-left:6px}
+.cp-list-item button{background:none;border:none;color:var(--vscode-errorForeground);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:3px;flex-shrink:0}
+.cp-list-item button:hover:not(:disabled){background:var(--vscode-toolbar-hoverBackground)}
+.cp-list-item button:disabled{opacity:.3;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -714,29 +748,44 @@ body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);col
 <!-- CUSTOM PROVIDER MODAL — full-page overlay over setup or chat -->
 <div id="custom-modal">
   <div id="custom-modal-inner">
-    <h2>➕ Add Custom Provider / Model</h2>
-    <p>Use any model aider/LiteLLM supports. These fields resolve the same way as the built-in providers — on save we actually start aider with them and report back if it fails.</p>
+    <h2>➕ Add Provider / Model</h2>
+    <p>Use any model aider/LiteLLM supports. Cloud needs an API key; Local runs on your machine via Ollama (no key, no rate limits).</p>
+
+    <div class="cp-tabs">
+      <button id="cp-mode-cloud" class="cp-tab active" type="button">☁ Cloud API</button>
+      <button id="cp-mode-local" class="cp-tab" type="button">💻 Local (Ollama)</button>
+    </div>
 
     <label>Display name</label>
     <input type="text" id="cp-label" placeholder="e.g. OpenRouter — Claude Haiku" autocomplete="off" spellcheck="false">
 
-    <label>Model id <span class="cp-hint">aider/LiteLLM format</span></label>
+    <label>Model id <span class="cp-hint" id="cp-model-hint">aider/LiteLLM format</span></label>
     <input type="text" id="cp-model" placeholder="e.g. openrouter/anthropic/claude-3.5-haiku" autocomplete="off" spellcheck="false">
-    <div class="cp-examples">Examples: <code>openrouter/...</code> · <code>deepseek/deepseek-chat</code> · <code>mistral/codestral-latest</code> · <code>openai/gpt-4o-mini</code> · <code>ollama/qwen2.5-coder</code></div>
+    <div class="cp-examples" id="cp-examples-cloud">Examples: <code>openrouter/...</code> · <code>deepseek/deepseek-chat</code> · <code>mistral/codestral-latest</code> · <code>openai/gpt-4o-mini</code></div>
+    <div class="cp-examples" id="cp-examples-local" style="display:none">Examples: <code>qwen2.5-coder:3b</code> · <code>llama3.2</code> · <code>qwen3:8b</code> &nbsp;·&nbsp; run <code>ollama pull &lt;model&gt;</code> first, with Ollama running.</div>
 
-    <label>API key env var <span class="cp-hint">auto-filled from the model id</span></label>
-    <input type="text" id="cp-env" placeholder="e.g. OPENROUTER_API_KEY" autocomplete="off" spellcheck="false">
+    <div id="cp-cloud-fields">
+      <label>API key env var <span class="cp-hint">auto-filled from the model id</span></label>
+      <input type="text" id="cp-env" placeholder="e.g. OPENROUTER_API_KEY" autocomplete="off" spellcheck="false">
 
-    <label>API key</label>
-    <input type="password" id="cp-key" placeholder="Paste the key for this provider" autocomplete="off" spellcheck="false">
+      <label>API key</label>
+      <input type="password" id="cp-key" placeholder="Paste the key for this provider" autocomplete="off" spellcheck="false">
 
-    <label class="cp-check"><input type="checkbox" id="cp-free"> Free tier</label>
+      <label class="cp-check"><input type="checkbox" id="cp-free"> Free tier</label>
+    </div>
+
+    <div id="cp-local-note" style="display:none">💻 No API key needed — runs locally via Ollama (the extension connects to it automatically). Make sure Ollama is running and you've pulled the model.</div>
 
     <div id="cp-error"></div>
 
     <div class="cp-actions">
-      <button id="cp-cancel" class="cp-btn-secondary">Cancel</button>
-      <button id="cp-save" class="cp-btn-primary">Add &amp; Connect</button>
+      <button id="cp-cancel" class="cp-btn-secondary" type="button">Cancel</button>
+      <button id="cp-save" class="cp-btn-primary" type="button">Add &amp; Connect</button>
+    </div>
+
+    <div id="cp-manage">
+      <div class="cp-manage-title">Your providers</div>
+      <div id="cp-list"></div>
     </div>
   </div>
 </div>
