@@ -104,10 +104,17 @@ export class AiderProcess extends EventEmitter {
     if (resolvedKey && provider.aiderModel.startsWith('groq/')) {
       env['GROQ_API_KEY'] = resolvedKey;
     }
-    // Local models via Ollama — point aider at the Ollama server. From inside the
-    // container the host is reachable as host.docker.internal; natively it's localhost.
+    // Local models via Ollama — point aider at the Ollama server. A provider can
+    // specify a custom URL (e.g. a remote GPU box); otherwise default to the host.
     if (isLocal) {
-      env['OLLAMA_API_BASE'] = useDocker ? 'http://host.docker.internal:11434' : 'http://localhost:11434';
+      let base = (provider.ollamaBaseUrl ?? '').trim();
+      if (!base) {
+        base = useDocker ? 'http://host.docker.internal:11434' : 'http://localhost:11434';
+      } else if (useDocker && /\/\/(localhost|127\.0\.0\.1)\b/i.test(base)) {
+        // A localhost URL can't reach the host from inside the container.
+        base = base.replace(/(localhost|127\.0\.0\.1)/i, 'host.docker.internal');
+      }
+      env['OLLAMA_API_BASE'] = base;
     }
 
     // Build the list of env vars to pass to the aider process (or Docker container)

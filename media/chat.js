@@ -720,7 +720,7 @@ function setCpMode(mode) {
   document.getElementById('cp-mode-cloud').classList.toggle('active', mode === 'cloud');
   document.getElementById('cp-mode-local').classList.toggle('active', mode === 'local');
   document.getElementById('cp-cloud-fields').style.display = mode === 'cloud' ? '' : 'none';
-  document.getElementById('cp-local-note').style.display = mode === 'local' ? 'block' : 'none';
+  document.getElementById('cp-local-fields').style.display = mode === 'local' ? 'block' : 'none';
   document.getElementById('cp-examples-cloud').style.display = mode === 'cloud' ? 'block' : 'none';
   document.getElementById('cp-examples-local').style.display = mode === 'local' ? 'block' : 'none';
   cpModel.placeholder = mode === 'local'
@@ -760,6 +760,7 @@ function renderProviderManageList() {
 
 function openCustomModal() {
   cpLabel.value = ''; cpModel.value = ''; cpEnv.value = ''; cpKey.value = '';
+  document.getElementById('cp-ollama-url').value = '';
   cpFree.checked = false; cpError.textContent = '';
   cpEnv.dataset.touched = '';
   cpSave.disabled = false; cpSave.textContent = 'Add & Connect';
@@ -794,9 +795,10 @@ cpSave.addEventListener('click', () => {
       : 'Name, model id, and API key are all required.';
     return;
   }
+  const ollamaBaseUrl = local ? document.getElementById('cp-ollama-url').value.trim() : '';
   cpSave.disabled = true; cpSave.textContent = 'Resolving…';
   cpError.textContent = '';
-  vscode.postMessage({ type: 'addCustomProvider', label, model, apiKeyEnv, key, freetier: local || cpFree.checked });
+  vscode.postMessage({ type: 'addCustomProvider', label, model, apiKeyEnv, key, freetier: local || cpFree.checked, ollamaBaseUrl });
 });
 
 function handleCustomProviderResult(msg) {

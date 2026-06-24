@@ -2,6 +2,22 @@
 
 All notable changes to Aider Studio are documented here.
 
+## [0.1.1]
+
+### Added
+- **Local (Ollama) models** as a first-class option — no API key, no rate
+  limits. The provider modal has **Cloud / Local tabs**; Local accepts a bare
+  model name (auto-prefixes `ollama_chat/`).
+- **Remote Ollama** — optional **Ollama URL** in the Local tab to point at a
+  model running on another machine (with automatic `host.docker.internal`
+  rewrite for localhost URLs in Docker mode).
+- **Remove providers** from a "Your providers" list in the modal — including the
+  built-in defaults (tracked via `aiderStudio.hiddenProviders`).
+
+### Changed
+- Default free OpenRouter model is now **Qwen3 Coder** (the previous DeepSeek
+  free tier was discontinued upstream).
+
 ## [0.1.0] — Initial release
 
 First public release. A Claude Code-style chat sidebar for VS Code, powered by

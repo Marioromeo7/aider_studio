@@ -6,6 +6,8 @@ export interface ProviderConfig {
   apiKeyEnv: string;
   apiKeySettingKey: string;
   freetier: boolean;
+  /** For local (Ollama) providers: optional base URL (e.g. a remote box). */
+  ollamaBaseUrl?: string;
 }
 
 export interface ProviderRegistry {
@@ -119,7 +121,7 @@ export function inferApiKeyEnv(aiderModel: string): string {
  */
 export async function addCustomProvider(
   context: vscode.ExtensionContext,
-  input: { label: string; aiderModel: string; apiKeyEnv?: string; freetier?: boolean; apiKey: string }
+  input: { label: string; aiderModel: string; apiKeyEnv?: string; freetier?: boolean; apiKey: string; ollamaBaseUrl?: string }
 ): Promise<{ id: string; provider: ProviderConfig }> {
   const config = vscode.workspace.getConfiguration('aiderStudio');
   const providers: ProviderRegistry = { ...(config.get<ProviderRegistry>('providers') ?? {}) };
@@ -138,6 +140,9 @@ export async function addCustomProvider(
     apiKeySettingKey: 'aiderStudio.customKey.' + id,
     freetier: !!input.freetier,
   };
+  if (input.ollamaBaseUrl && input.ollamaBaseUrl.trim()) {
+    provider.ollamaBaseUrl = input.ollamaBaseUrl.trim();
+  }
 
   providers[id] = provider;
   await config.update('providers', providers, vscode.ConfigurationTarget.Global);

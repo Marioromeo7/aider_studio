@@ -198,6 +198,7 @@ export class ChatPanel implements vscode.WebviewViewProvider {
               apiKeyEnv: msg.apiKeyEnv,
               freetier: msg.freetier,
               apiKey: msg.key,
+              ollamaBaseUrl: msg.ollamaBaseUrl,
             });
             await setActiveProvider(id);
             this.postMessage({ type: 'system', text: `Added "${provider.label}" — resolving…` });
@@ -774,7 +775,11 @@ body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);col
       <label class="cp-check"><input type="checkbox" id="cp-free"> Free tier</label>
     </div>
 
-    <div id="cp-local-note" style="display:none">💻 No API key needed — runs locally via Ollama (the extension connects to it automatically). Make sure Ollama is running and you've pulled the model.</div>
+    <div id="cp-local-fields" style="display:none">
+      <label>Ollama URL <span class="cp-hint">optional — blank = this machine</span></label>
+      <input type="text" id="cp-ollama-url" placeholder="http://localhost:11434 (default)" autocomplete="off" spellcheck="false">
+      <div id="cp-local-note">💻 No API key needed. Leave blank to use Ollama on this computer, or point at a remote box (e.g. <code>http://192.168.1.50:11434</code>). Make sure the model is pulled and Ollama is reachable.</div>
+    </div>
 
     <div id="cp-error"></div>
 
