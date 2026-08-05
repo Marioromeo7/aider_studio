@@ -4,6 +4,7 @@ import { AiderProcess, AiderOutputEvent, AiderStatus } from '../utils/aiderProce
 import { SessionManager } from '../utils/sessionManager';
 import { RepoMapManager } from '../utils/repoMap';
 import { getProviders, getActiveProviderId, getActiveProvider, setActiveProvider, storeApiKey, resolveApiKey, addCustomProvider, removeProvider } from '../providers/registry';
+import { getLocalBackend, LocalKind } from '../providers/localBackends';
 
 export class ChatPanel implements vscode.WebviewViewProvider {
   public static readonly viewType = 'aider-studio.chatView';
@@ -187,6 +188,22 @@ export class ChatPanel implements vscode.WebviewViewProvider {
           break;
         }
 
+        // Probe a local server from the Add Provider modal — lets the user pick a
+        // model from what's actually loaded instead of guessing an id blindly
+        // (the LM Studio confusion in issue #1 was exactly this: no way to see
+        // what the server had available before saving).
+        case 'testLocalConnection': {
+          const useDocker = vscode.workspace.getConfiguration('aiderStudio').get<boolean>('useDocker') ?? true;
+          const backend = getLocalBackend((msg.localKind as LocalKind) || 'ollama', msg.localBaseUrl, useDocker);
+          const result = await backend.testConnection();
+          let models: string[] = [];
+          if (result.ok) {
+            try { models = (await backend.listModels()).map((m) => m.id); } catch { /* already reflected in result.ok */ }
+          }
+          this.postMessage({ type: 'localConnectionResult', ok: result.ok, message: result.message, models });
+          break;
+        }
+
         // User submitted the custom-provider modal: persist it, then resolve it
         // by actually starting aider — same path as a normal run. Any failure is
         // sent back so the modal can show why it didn't resolve.
@@ -198,7 +215,8 @@ export class ChatPanel implements vscode.WebviewViewProvider {
               apiKeyEnv: msg.apiKeyEnv,
               freetier: msg.freetier,
               apiKey: msg.key,
-              ollamaBaseUrl: msg.ollamaBaseUrl,
+              localKind: msg.localKind,
+              localBaseUrl: msg.localBaseUrl,
             });
             await setActiveProvider(id);
             this.postMessage({ type: 'system', text: `Added "${provider.label}" — resolving…` });
@@ -663,6 +681,10 @@ body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);col
 .cp-tab{flex:1;background:none;border:none;color:var(--vscode-foreground);padding:7px 10px;font-size:12px;cursor:pointer;opacity:.7}
 .cp-tab.active{background:var(--vscode-button-background);color:var(--vscode-button-foreground);opacity:1}
 #cp-local-note{font-size:11px;line-height:1.5;background:var(--vscode-textBlockQuote-background,var(--vscode-editor-background));border-left:2px solid var(--vscode-focusBorder);padding:8px 10px;border-radius:4px;opacity:.9}
+#cp-local-test-result{font-size:11px;min-height:14px;margin:4px 0}
+#cp-local-test-result.ok{color:var(--vscode-terminal-ansiGreen,#4caf50)}
+#cp-local-test-result.err{color:var(--vscode-errorForeground)}
+#cp-local-model-picker{width:100%;margin-bottom:6px}
 #cp-manage{margin-top:18px;border-top:1px solid var(--vscode-input-border);padding-top:12px}
 .cp-manage-title{font-size:11px;font-weight:600;opacity:.7;margin-bottom:6px}
 .cp-list-item{display:flex;align-items:center;justify-content:space-between;padding:5px 8px;border:1px solid var(--vscode-input-border);border-radius:5px;margin-bottom:5px;font-size:11px}
@@ -752,20 +774,26 @@ body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);col
 <div id="custom-modal">
   <div id="custom-modal-inner">
     <h2>➕ Add Provider / Model</h2>
-    <p>Use any model aider/LiteLLM supports. Cloud needs an API key; Local runs on your machine via Ollama (no key, no rate limits).</p>
+    <p>Use any model aider/LiteLLM supports. Cloud needs an API key; Local runs on your machine (no key, no rate limits).</p>
 
     <div class="cp-tabs">
       <button id="cp-mode-cloud" class="cp-tab active" type="button">☁ Cloud API</button>
-      <button id="cp-mode-local" class="cp-tab" type="button">💻 Local (Ollama)</button>
+      <button id="cp-mode-local" class="cp-tab" type="button">💻 Local</button>
     </div>
 
     <label>Display name</label>
     <input type="text" id="cp-label" placeholder="e.g. OpenRouter — Claude Haiku" autocomplete="off" spellcheck="false">
 
+    <div id="cp-local-kind-row" class="cp-tabs" style="display:none">
+      <button id="cp-local-kind-ollama" class="cp-tab active" type="button">Ollama</button>
+      <button id="cp-local-kind-openai" class="cp-tab" type="button">OpenAI-compatible</button>
+    </div>
+    <div class="cp-hint" id="cp-local-kind-note">LM Studio, llama.cpp server, vLLM, text-generation-webui, LocalAI, ...</div>
+
     <label>Model id <span class="cp-hint" id="cp-model-hint">aider/LiteLLM format</span></label>
     <input type="text" id="cp-model" placeholder="e.g. openrouter/anthropic/claude-3.5-haiku" autocomplete="off" spellcheck="false">
     <div class="cp-examples" id="cp-examples-cloud">Examples: <code>openrouter/...</code> · <code>deepseek/deepseek-chat</code> · <code>mistral/codestral-latest</code> · <code>openai/gpt-4o-mini</code></div>
-    <div class="cp-examples" id="cp-examples-local" style="display:none">Examples: <code>qwen2.5-coder:3b</code> · <code>llama3.2</code> · <code>qwen3:8b</code> &nbsp;·&nbsp; run <code>ollama pull &lt;model&gt;</code> first, with Ollama running.</div>
+    <div class="cp-examples" id="cp-examples-local" style="display:none">Test the connection below to pick from models actually loaded on the server, or type an id directly.</div>
 
     <div id="cp-cloud-fields">
       <label>API key env var <span class="cp-hint">auto-filled from the model id</span></label>
@@ -778,9 +806,14 @@ body{font-family:var(--vscode-font-family);font-size:var(--vscode-font-size);col
     </div>
 
     <div id="cp-local-fields" style="display:none">
-      <label>Ollama URL <span class="cp-hint">optional — blank = this machine</span></label>
-      <input type="text" id="cp-ollama-url" placeholder="http://localhost:11434 (default)" autocomplete="off" spellcheck="false">
-      <div id="cp-local-note">💻 No API key needed. Leave blank to use Ollama on this computer, or point at a remote box (e.g. <code>http://192.168.1.50:11434</code>). Make sure the model is pulled and Ollama is reachable.</div>
+      <label>Server URL <span class="cp-hint">optional — blank = this machine's default port</span></label>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="cp-local-url" placeholder="http://localhost:11434 (default)" autocomplete="off" spellcheck="false" style="flex:1">
+        <button id="cp-local-test" class="cp-btn-secondary" type="button" style="white-space:nowrap">Test connection</button>
+      </div>
+      <div id="cp-local-test-result"></div>
+      <select id="cp-local-model-picker" style="display:none"></select>
+      <div id="cp-local-note">💻 No API key needed. Leave blank to use the default local port, or point at a remote box (e.g. <code>http://192.168.1.50:11434</code>). Make sure the server is running and the model is loaded.</div>
     </div>
 
     <div id="cp-error"></div>

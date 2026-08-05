@@ -55,6 +55,9 @@ window.addEventListener('message', ({ data: msg }) => {
     case 'customProviderResult':
       handleCustomProviderResult(msg);
       break;
+    case 'localConnectionResult':
+      handleLocalConnectionResult(msg);
+      break;
     case 'providersUpdated':
       if (msg.providers) {
         Object.keys(providers).forEach(k => delete providers[k]);
@@ -715,20 +718,81 @@ function inferEnv(model) {
 }
 
 let cpMode = 'cloud';
+let cpLocalKind = 'ollama'; // 'ollama' | 'openai-compatible'
+const LOCAL_KIND_INFO = {
+  ollama: { port: 11434, placeholder: 'e.g. qwen2.5-coder:3b  (ollama_chat/ added automatically)' },
+  'openai-compatible': { port: 1234, placeholder: 'e.g. qwen2.5-coder-7b-instruct  (as shown by the server)' },
+};
+
 function setCpMode(mode) {
   cpMode = mode;
   document.getElementById('cp-mode-cloud').classList.toggle('active', mode === 'cloud');
   document.getElementById('cp-mode-local').classList.toggle('active', mode === 'local');
   document.getElementById('cp-cloud-fields').style.display = mode === 'cloud' ? '' : 'none';
   document.getElementById('cp-local-fields').style.display = mode === 'local' ? 'block' : 'none';
+  document.getElementById('cp-local-kind-row').style.display = mode === 'local' ? 'flex' : 'none';
   document.getElementById('cp-examples-cloud').style.display = mode === 'cloud' ? 'block' : 'none';
   document.getElementById('cp-examples-local').style.display = mode === 'local' ? 'block' : 'none';
-  cpModel.placeholder = mode === 'local'
-    ? 'e.g. qwen2.5-coder:3b  (ollama_chat/ added automatically)'
-    : 'e.g. openrouter/anthropic/claude-3.5-haiku';
+  updateLocalModePlaceholders();
 }
 document.getElementById('cp-mode-cloud').addEventListener('click', () => setCpMode('cloud'));
 document.getElementById('cp-mode-local').addEventListener('click', () => setCpMode('local'));
+
+function setCpLocalKind(kind) {
+  cpLocalKind = kind;
+  document.getElementById('cp-local-kind-ollama').classList.toggle('active', kind === 'ollama');
+  document.getElementById('cp-local-kind-openai').classList.toggle('active', kind === 'openai-compatible');
+  document.getElementById('cp-local-test-result').textContent = '';
+  document.getElementById('cp-local-test-result').className = '';
+  document.getElementById('cp-local-model-picker').style.display = 'none';
+  updateLocalModePlaceholders();
+}
+document.getElementById('cp-local-kind-ollama').addEventListener('click', () => setCpLocalKind('ollama'));
+document.getElementById('cp-local-kind-openai').addEventListener('click', () => setCpLocalKind('openai-compatible'));
+
+function updateLocalModePlaceholders() {
+  if (cpMode !== 'local') {
+    cpModel.placeholder = 'e.g. openrouter/anthropic/claude-3.5-haiku';
+    return;
+  }
+  const info = LOCAL_KIND_INFO[cpLocalKind];
+  cpModel.placeholder = info.placeholder;
+  document.getElementById('cp-local-url').placeholder = `http://localhost:${info.port} (default)`;
+}
+
+document.getElementById('cp-local-test').addEventListener('click', () => {
+  const localBaseUrl = document.getElementById('cp-local-url').value.trim();
+  const resultEl = document.getElementById('cp-local-test-result');
+  resultEl.textContent = 'Testing…';
+  resultEl.className = '';
+  document.getElementById('cp-local-model-picker').style.display = 'none';
+  vscode.postMessage({ type: 'testLocalConnection', localKind: cpLocalKind, localBaseUrl });
+});
+
+function handleLocalConnectionResult(msg) {
+  const resultEl = document.getElementById('cp-local-test-result');
+  resultEl.textContent = msg.message || (msg.ok ? 'Connected.' : 'Could not connect.');
+  resultEl.className = msg.ok ? 'ok' : 'err';
+  const picker = document.getElementById('cp-local-model-picker');
+  picker.innerHTML = '';
+  if (msg.ok && Array.isArray(msg.models) && msg.models.length > 0) {
+    const placeholder = document.createElement('option');
+    placeholder.value = ''; placeholder.textContent = '— pick a loaded model —';
+    picker.appendChild(placeholder);
+    msg.models.forEach(id => {
+      const opt = document.createElement('option');
+      opt.value = id; opt.textContent = id;
+      picker.appendChild(opt);
+    });
+    picker.style.display = 'block';
+  } else {
+    picker.style.display = 'none';
+  }
+}
+
+document.getElementById('cp-local-model-picker').addEventListener('change', (e) => {
+  if (e.target.value) cpModel.value = e.target.value;
+});
 
 // "Your providers" list with remove buttons.
 function renderProviderManageList() {
@@ -760,11 +824,15 @@ function renderProviderManageList() {
 
 function openCustomModal() {
   cpLabel.value = ''; cpModel.value = ''; cpEnv.value = ''; cpKey.value = '';
-  document.getElementById('cp-ollama-url').value = '';
+  document.getElementById('cp-local-url').value = '';
+  document.getElementById('cp-local-test-result').textContent = '';
+  document.getElementById('cp-local-test-result').className = '';
+  document.getElementById('cp-local-model-picker').style.display = 'none';
   cpFree.checked = false; cpError.textContent = '';
   cpEnv.dataset.touched = '';
   cpSave.disabled = false; cpSave.textContent = 'Add & Connect';
   setCpMode('cloud');
+  setCpLocalKind('ollama');
   renderProviderManageList();
   customModal.style.display = 'flex';
   cpLabel.focus();
@@ -781,13 +849,11 @@ document.getElementById('cp-cancel').addEventListener('click', () => {
 
 cpSave.addEventListener('click', () => {
   const label = cpLabel.value.trim();
-  let model = cpModel.value.trim();
-  const local = cpMode === 'local' || /^ollama(_chat)?\//.test(model);
-  // In Local mode, accept a bare model name and add the ollama_chat/ prefix.
-  if (cpMode === 'local' && model && !/^ollama(_chat)?\//.test(model)) {
-    model = 'ollama_chat/' + model;
-  }
-  const apiKeyEnv = local ? 'OLLAMA_API_KEY' : cpEnv.value.trim();
+  const model = cpModel.value.trim();
+  const local = cpMode === 'local';
+  // Local model ids are stored bare (e.g. "qwen2.5-coder:3b") — the extension's
+  // backend for the chosen kind adds the right aider prefix (ollama_chat/, openai/) at launch.
+  const apiKeyEnv = local ? '' : cpEnv.value.trim();
   const key = local ? '' : cpKey.value.trim();
   if (!label || !model || (!key && !local)) {
     cpError.textContent = local
@@ -795,10 +861,11 @@ cpSave.addEventListener('click', () => {
       : 'Name, model id, and API key are all required.';
     return;
   }
-  const ollamaBaseUrl = local ? document.getElementById('cp-ollama-url').value.trim() : '';
+  const localKind = local ? cpLocalKind : undefined;
+  const localBaseUrl = local ? document.getElementById('cp-local-url').value.trim() : '';
   cpSave.disabled = true; cpSave.textContent = 'Resolving…';
   cpError.textContent = '';
-  vscode.postMessage({ type: 'addCustomProvider', label, model, apiKeyEnv, key, freetier: local || cpFree.checked, ollamaBaseUrl });
+  vscode.postMessage({ type: 'addCustomProvider', label, model, apiKeyEnv, key, freetier: local || cpFree.checked, localKind, localBaseUrl });
 });
 
 function handleCustomProviderResult(msg) {

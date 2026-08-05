@@ -3,7 +3,8 @@ import * as cp from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import { EventEmitter } from 'events';
-import { ProviderConfig, resolveApiKey } from '../providers/registry';
+import { ProviderConfig, resolveApiKey, getLocalKind, getLocalBaseUrl } from '../providers/registry';
+import { getLocalBackend } from '../providers/localBackends';
 
 export type AiderStatus = 'stopped' | 'starting' | 'ready' | 'thinking' | 'error';
 
@@ -48,8 +49,9 @@ export class AiderProcess extends EventEmitter {
       this.stop();
     }
 
-    // Local models (Ollama) need no API key — they run on your machine.
-    const isLocal = /^ollama(_chat)?\//.test(provider.aiderModel);
+    // Local models (Ollama, LM Studio, llama.cpp, vLLM, ...) need no API key — they run on your machine.
+    const localKind = getLocalKind(provider);
+    const isLocal = !!localKind;
 
     let resolvedKey = await resolveApiKey(this.context, provider);
     if (!isLocal && (!resolvedKey || forcePrompt)) {
@@ -75,8 +77,15 @@ export class AiderProcess extends EventEmitter {
     const showModelWarnings =
       this.context.globalState.get<boolean>('aiderStudio.showModelWarnings') ?? false;
 
+    // Resolve the local backend (Ollama vs any OpenAI-compatible server) up front —
+    // it decides the actual --model string, base-URL env vars, and Docker routing.
+    const localConn = localKind
+      ? getLocalBackend(localKind, getLocalBaseUrl(provider), useDocker).resolveConnection(provider.aiderModel)
+      : null;
+    const effectiveModel = localConn?.aiderModel ?? provider.aiderModel;
+
     const args = [
-      '--model', provider.aiderModel,
+      '--model', effectiveModel,
       '--no-pretty',
       // Disable token streaming: piped into a non-TTY, aider's live markdown
       // renderer mangles inter-word spacing (e.g. "You'veprovidedtherules").
@@ -108,17 +117,10 @@ export class AiderProcess extends EventEmitter {
     if (resolvedKey && provider.aiderModel.startsWith('groq/')) {
       env['GROQ_API_KEY'] = resolvedKey;
     }
-    // Local models via Ollama — point aider at the Ollama server. A provider can
-    // specify a custom URL (e.g. a remote GPU box); otherwise default to the host.
-    if (isLocal) {
-      let base = (provider.ollamaBaseUrl ?? '').trim();
-      if (!base) {
-        base = useDocker ? 'http://host.docker.internal:11434' : 'http://localhost:11434';
-      } else if (useDocker && /\/\/(localhost|127\.0\.0\.1)\b/i.test(base)) {
-        // A localhost URL can't reach the host from inside the container.
-        base = base.replace(/(localhost|127\.0\.0\.1)/i, 'host.docker.internal');
-      }
-      env['OLLAMA_API_BASE'] = base;
+    // Local models — env vars (OLLAMA_API_BASE, or OPENAI_API_BASE + a placeholder
+    // key for any OpenAI-compatible server) come from the resolved backend above.
+    if (localConn) {
+      Object.assign(env, localConn.env);
     }
 
     // Build the list of env vars to pass to the aider process (or Docker container)
@@ -128,14 +130,15 @@ export class AiderProcess extends EventEmitter {
       if (v === undefined || v === '') continue;
       const lk = k.toUpperCase();
       if (lk.includes('API_KEY') || lk.includes('TOKEN') || lk === 'OLLAMA_API_BASE' ||
+          lk === 'OPENAI_API_BASE' ||
           lk === 'HOME' || lk === 'PATH' || lk === 'LANG' || lk === 'TERM' ||
           lk === 'http_proxy' || lk === 'https_proxy') {
         aiderEnvVars.push('-e', k + '=' + v);
       }
     }
 
-    // In Docker, give the container a route back to the host's Ollama server.
-    const dockerExtraArgs = isLocal ? ['--add-host', 'host.docker.internal:host-gateway'] : [];
+    // In Docker, give the container a route back to the host's local server.
+    const dockerExtraArgs = localConn?.dockerExtraArgs ?? [];
 
     // Ensure a git repo exists before starting aider (aider requires git)
     await this.ensureGitRepo();

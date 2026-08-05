@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { LocalKind } from './localBackends';
 
 export interface ProviderConfig {
   label: string;
@@ -6,7 +7,11 @@ export interface ProviderConfig {
   apiKeyEnv: string;
   apiKeySettingKey: string;
   freetier: boolean;
-  /** For local (Ollama) providers: optional base URL (e.g. a remote box). */
+  /** Local (on-device) runtime, e.g. Ollama or any OpenAI-compatible server (LM Studio, llama.cpp, vLLM, ...). */
+  localKind?: LocalKind;
+  /** Base URL for the local server (e.g. a remote GPU box). Blank = the backend's default (localhost). */
+  localBaseUrl?: string;
+  /** @deprecated superseded by localBaseUrl + localKind: 'ollama'. Kept so providers saved before this existed keep working. */
   ollamaBaseUrl?: string;
 }
 
@@ -47,6 +52,23 @@ export function getActiveProvider(): ProviderConfig | undefined {
 export async function setActiveProvider(id: string): Promise<void> {
   const config = vscode.workspace.getConfiguration('aiderStudio');
   await config.update('activeProvider', id, vscode.ConfigurationTarget.Global);
+}
+
+/**
+ * Resolves whether a provider is a local (on-device) runtime, and which kind.
+ * An explicit `localKind` wins; otherwise falls back to sniffing the model
+ * prefix / legacy `ollamaBaseUrl`, so providers saved before `localKind`
+ * existed keep working without a settings migration.
+ */
+export function getLocalKind(provider: ProviderConfig): LocalKind | undefined {
+  if (provider.localKind) return provider.localKind;
+  if (/^ollama(_chat)?\//.test(provider.aiderModel)) return 'ollama';
+  if (provider.ollamaBaseUrl) return 'ollama';
+  return undefined;
+}
+
+export function getLocalBaseUrl(provider: ProviderConfig): string | undefined {
+  return provider.localBaseUrl ?? provider.ollamaBaseUrl;
 }
 
 /**
@@ -121,7 +143,10 @@ export function inferApiKeyEnv(aiderModel: string): string {
  */
 export async function addCustomProvider(
   context: vscode.ExtensionContext,
-  input: { label: string; aiderModel: string; apiKeyEnv?: string; freetier?: boolean; apiKey: string; ollamaBaseUrl?: string }
+  input: {
+    label: string; aiderModel: string; apiKeyEnv?: string; freetier?: boolean; apiKey: string;
+    localKind?: LocalKind; localBaseUrl?: string;
+  }
 ): Promise<{ id: string; provider: ProviderConfig }> {
   const config = vscode.workspace.getConfiguration('aiderStudio');
   const providers: ProviderRegistry = { ...(config.get<ProviderRegistry>('providers') ?? {}) };
@@ -133,15 +158,25 @@ export async function addCustomProvider(
   let n = 2;
   while (providers[id]) id = baseId + '-' + n++;
 
+  // Local providers never resolve a key (see aiderProcess.start's isLocal branch), so
+  // just record something descriptive instead of running the cloud prefix inference
+  // on a bare local model id.
+  const apiKeyEnv = input.localKind
+    ? (input.localKind === 'ollama' ? 'OLLAMA_API_KEY' : 'OPENAI_API_KEY')
+    : (input.apiKeyEnv && input.apiKeyEnv.trim()) || inferApiKeyEnv(input.aiderModel);
+
   const provider: ProviderConfig = {
     label: input.label.trim(),
     aiderModel: input.aiderModel.trim(),
-    apiKeyEnv: (input.apiKeyEnv && input.apiKeyEnv.trim()) || inferApiKeyEnv(input.aiderModel),
+    apiKeyEnv,
     apiKeySettingKey: 'aiderStudio.customKey.' + id,
     freetier: !!input.freetier,
   };
-  if (input.ollamaBaseUrl && input.ollamaBaseUrl.trim()) {
-    provider.ollamaBaseUrl = input.ollamaBaseUrl.trim();
+  if (input.localKind) {
+    provider.localKind = input.localKind;
+    if (input.localBaseUrl && input.localBaseUrl.trim()) {
+      provider.localBaseUrl = input.localBaseUrl.trim();
+    }
   }
 
   providers[id] = provider;
