@@ -2,6 +2,23 @@
 
 All notable changes to Aider Studio are documented here.
 
+## [0.1.3]
+
+### Added
+- **Local now supports any OpenAI-compatible server** — LM Studio, llama.cpp's
+  server, vLLM, text-generation-webui, LocalAI, etc. — not just Ollama. The
+  Local tab in the provider modal has an Ollama / OpenAI-compatible toggle.
+- **Test connection** button in the Add Provider modal: probes the local
+  server and lets you pick from models actually loaded there instead of
+  typing an id blind (fixes the confusion in #1 where LM Studio users had no
+  way to see what models were available before saving).
+
+### Changed
+- Local provider routing now goes through a small backend strategy
+  (`src/providers/localBackends.ts`): a generic OpenAI-compatible backend, and
+  an Ollama backend that specializes it to keep Ollama's native-API niceties
+  (no dummy key, richer model listing via `/api/tags`).
+
 ## [0.1.2]
 
 ### Fixed

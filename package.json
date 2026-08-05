@@ -2,7 +2,7 @@
   "name": "aider-studio",
   "displayName": "Aider Studio",
   "description": "A Claude Code-style chat sidebar for VS Code, powered by Aider and your own LLM provider (bring your own key).",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "publisher": "marioromeo7",
   "license": "MIT",
   "icon": "resources/icon.png",
