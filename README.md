@@ -85,3 +85,19 @@ Use the **"＋ Add custom provider"** entry in the dropdown, or add to `settings
 ## Credits & license
 
 Built on [Aider](https://aider.chat) by Paul Gauthier (Apache-2.0), installed separately. Aider Studio itself is MIT licensed.
+
+---
+
+## Who made this
+
+**Mario Hossam Mitry George** — ML engineer in Alexandria, Egypt.
+
+I work on Arabic NLP and efficient model architectures — everything I build runs on a 4 GB
+laptop GPU, including a [six-variant ablation on fixed-memory recurrent language models](https://github.com/Marioromeo7/rivernet)
+([DOI](https://doi.org/10.5281/zenodo.20344111)) and a [production Arabic/English OCR pipeline](https://github.com/Marioromeo7/ocr).
+
+**Currently open to ML research and AI engineering roles**, remote or Gulf-based.
+
+[GitHub](https://github.com/Marioromeo7) · [Portfolio](https://marioromeo7.github.io/portfolio/) · [LinkedIn](https://linkedin.com/in/mario-hossam-mitry-george) · metrymarioromeo546@gmail.com
+
+Found a bug or want a feature? [Open an issue](https://github.com/Marioromeo7/aider_studio/issues) — I read all of them.

@@ -5,6 +5,12 @@
   "version": "0.1.3",
   "publisher": "marioromeo7",
   "license": "MIT",
+  "author": {
+    "name": "Mario Hossam Mitry George",
+    "email": "metrymarioromeo546@gmail.com",
+    "url": "https://marioromeo7.github.io/portfolio/"
+  },
+  "qna": "https://github.com/Marioromeo7/aider_studio/issues",
   "icon": "resources/icon.png",
   "repository": {
     "type": "git",
